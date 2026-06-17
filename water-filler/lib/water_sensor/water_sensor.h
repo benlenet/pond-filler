@@ -9,7 +9,7 @@
 
 #define ADC_BITWIDTH       ADC_BITWIDTH_12
 #define ADC_ATTEN          ADC_ATTEN_DB_12    
-#define ADC_PIN            ADC_CHANNEL_1
+#define ADC_PIN            ADC_CHANNEL_4
 #define ADC_UNIT           ADC_UNIT_1
 
 
