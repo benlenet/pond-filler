@@ -10,4 +10,15 @@
 // define for NMOS gate pin
 #define GPIO_GATE       GPIO_NUM_5
 
+
+#define WATER_SENSOR_DELAY_MS 500
+#define WATER_SENSOR_HOLD_MS  200
+
+#define WATER_MAX_VAL         250
+#define WATER_MIN_VAL         200
+#define WATER_SAMPLE_RATE     10
+
+#define SOLENOID_DELAY_MS     2000   
+
+
 #endif

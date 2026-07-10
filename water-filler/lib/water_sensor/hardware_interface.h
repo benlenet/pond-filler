@@ -18,9 +18,15 @@
 #define BUF_SIZE           1024
 #define RD_BUF_SIZE        1024
 
+// set gpio, adc, and uart inits
+void hw_init_sensors(void);
+// turn onboard debugging light on
+void hw_set_indicator_led(int state);
+// turn water sensor on
+void hw_set_sensor_power(int state);
+// return oneshot adc sample
+int  hw_read_water_level(void);
+// set gate of NMOS
+void hw_set_solenoid_valve(int state);
 
-void uart_init(void);
-void gpio_init(void); 
-int  adc_read(adc_oneshot_unit_handle_t* adc_handle);
-void adc_init(adc_oneshot_unit_handle_t* adc_handle);
 #endif

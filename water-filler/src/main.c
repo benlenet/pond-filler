@@ -1,78 +1,85 @@
-
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "water_sensor.h"
+#include "hardware_interface.h"
 #include "sensor_macro.h"
-
-#define WATER_SENSOR_DELAY_MS 500
-#define WATER_SENSOR_HOLD_MS  200
+#include "pond_control_logic.h"
 
 static const char *TAG = "MAIN";
-static int water_reading;
 
-/**
- * @brief Reads analog value from GPIO_WATER_DATA and prints
- * 
- * @param pvParameters Task parameters (can be NULL if not needed)
- */
-static void water_sensor(void *pvParameters) {
+static int shared_water_reading = 0;
+static SemaphoreHandle_t mutex; 
 
-    adc_oneshot_unit_handle_t adc_handle;
-    adc_init(&adc_handle);
-    // max value is 250, no water is 0, lowest value of resistor is 200. 
-    while (1) {
-        gpio_set_level(GPIO_LED, 1);
-        gpio_set_level(GPIO_WATER_EN, 1);
-        vTaskDelay(pdMS_TO_TICKS(WATER_SENSOR_HOLD_MS));  // Increased stabilization time
-        
-        // Average 10 samples with longer intervals
-        int sum = 0;
-        for (int i = 0; i < 10; i++) {
-            sum += adc_read(&adc_handle);
-            vTaskDelay(pdMS_TO_TICKS(10));
-        }
-        water_reading = sum / 10;
-        
-        ESP_LOGI(TAG, "Water Analog Level: %d", water_reading);
-        gpio_set_level(GPIO_LED, 0);
-        gpio_set_level(GPIO_WATER_EN, 0);
-        
-        // set to sleep for longer after reading
-        vTaskDelay(pdMS_TO_TICKS(WATER_SENSOR_DELAY_MS));  // Longer interval between measurements
+// TODO: change water sensor sampling time,
+// change solenoid evaluate_water_level func 
+
+// Thread-safe setter
+void set_water_reading(int val) {
+    if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+        shared_water_reading = val;
+        xSemaphoreGive(mutex);
     }
-    
-    // Task cleanup (if task is designed to exit)
-    vTaskDelete(NULL);
 }
 
-/**
- * @brief Another example task with different priority
- * 
- * @param pvParameters Task parameters
- */
-static void nmos(void *pvParameters) {
-    while (1) {
-        ESP_LOGI(TAG, "Activate");
-        
-        // Add your task logic here
-        vTaskDelay(pdMS_TO_TICKS(2000));
+// Thread-safe getter
+int get_water_reading(void) {
+    int val = 0;
+    if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+        val = shared_water_reading;
+        xSemaphoreGive(mutex);
     }
+    return val;
+}
+
+static void water_sensor_task(void *pvParameters) {
+    hw_init_sensors();
     
-    vTaskDelete(NULL);
+    while (1) {
+        hw_set_indicator_led(1);
+        hw_set_sensor_power(1);
+        vTaskDelay(pdMS_TO_TICKS(WATER_SENSOR_HOLD_MS));
+        
+        int sum = 0;
+        for (int i = 0; i < WATER_SAMPLE_RATE; i++) {
+            sum += hw_read_water_level();
+            vTaskDelay(pdMS_TO_TICKS(WATER_SAMPLE_RATE));
+        }
+        
+        set_water_reading(sum / WATER_SAMPLE_RATE);
+        
+        hw_set_indicator_led(0);
+        hw_set_sensor_power(0);
+        vTaskDelay(pdMS_TO_TICKS(WATER_SENSOR_DELAY_MS));
+    }
+}
+
+static void solenoid_control_task(void *pvParameters) {
+    while (1) {
+        int current_level = get_water_reading();
+        ValveAction action = evaluate_water_level(current_level);
+        
+        if (action == VALVE_OPEN) {
+            hw_set_solenoid_valve(1);
+        } else if (action == VALVE_CLOSE) {
+            hw_set_solenoid_valve(0);
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(SOLENOID_DELAY_MS));
+    }
 }
 
 void app_main() {
 
-    gpio_init();
+    hw_init_sensors();
+    mutex = xSemaphoreCreateMutex();
+    assert(mutex);
+    
+    ESP_LOGI(TAG, "Reset Switch");
     
 
-    ESP_LOGI(TAG, "Starting FreeRTOS tasks...");
-    
-    // Create first task
     xTaskCreate(
-        water_sensor,           // Task function
+        water_sensor_task,           // Task function
          "water_sensor",         // Task name (for debugging)
         2048,                   // Stack size in bytes (512 * 4 = 2048 bytes)
         NULL,                   // Task parameters
@@ -80,15 +87,14 @@ void app_main() {
         NULL                    // Task handle (NULL if not needed)
     );
     
-    // Create second task
-    // xTaskCreate(
-    //     task_secondary,
-    //     "task_secondary",
-    //     2048,
-    //     NULL,
-    //     2,                      // Higher priority than task_example
-    //     NULL
-    // );
+    xTaskCreate(
+        solenoid_control_task,
+        "solenoid",
+        2048,
+        NULL,
+        1,                      
+        NULL
+    );
     
     ESP_LOGI(TAG, "All tasks created");
 }
