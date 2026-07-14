@@ -11,9 +11,6 @@ static const char *TAG = "MAIN";
 static int shared_water_reading = 0;
 static SemaphoreHandle_t mutex; 
 
-// TODO: change water sensor sampling time,
-// change solenoid evaluate_water_level func 
-
 // Thread-safe setter
 void set_water_reading(int val) {
     if (xSemaphoreTake(mutex, portMAX_DELAY)) {
@@ -32,6 +29,7 @@ int get_water_reading(void) {
     return val;
 }
 
+// retrieve adc reading from water sensor
 static void water_sensor_task(void *pvParameters) {
     hw_init_sensors();
     
@@ -43,7 +41,7 @@ static void water_sensor_task(void *pvParameters) {
         int sum = 0;
         for (int i = 0; i < WATER_SAMPLE_RATE; i++) {
             sum += hw_read_water_level();
-            vTaskDelay(pdMS_TO_TICKS(WATER_SAMPLE_RATE));
+            vTaskDelay(pdMS_TO_TICKS(WATER_SENSOR_HOLD_MS));
         }
         
         set_water_reading(sum / WATER_SAMPLE_RATE);
@@ -54,6 +52,7 @@ static void water_sensor_task(void *pvParameters) {
     }
 }
 
+// activate solenoid
 static void solenoid_control_task(void *pvParameters) {
     while (1) {
         int current_level = get_water_reading();

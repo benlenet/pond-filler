@@ -18,7 +18,7 @@
 #define WATER_MIN_VAL         200
 #define WATER_SAMPLE_RATE     10
 
-#define SOLENOID_DELAY_MS     2000   
+#define SOLENOID_DELAY_MS     500   
 
 
 #endif
