@@ -6,6 +6,8 @@
 #include "sensor_macro.h"
 #include "pond_control_logic.h"
 
+#define DEBUG_PRINT 1
+
 static const char *TAG = "MAIN";
 
 static int shared_water_reading = 0;
@@ -46,6 +48,10 @@ static void water_sensor_task(void *pvParameters) {
         
         set_water_reading(sum / WATER_SAMPLE_RATE);
         
+        #if DEBUG_PRINT == 1
+            printf("water level: %d\n", sum);
+        #endif
+
         hw_set_indicator_led(0);
         hw_set_sensor_power(0);
         vTaskDelay(pdMS_TO_TICKS(WATER_SENSOR_DELAY_MS));
@@ -64,6 +70,10 @@ static void solenoid_control_task(void *pvParameters) {
             hw_set_solenoid_valve(0);
         }
         
+        #if DEBUG_PRINT == 1
+            printf("solenoid action: %d\n", action);
+        #endif
+
         vTaskDelay(pdMS_TO_TICKS(SOLENOID_DELAY_MS));
     }
 }
@@ -86,14 +96,14 @@ void app_main() {
         NULL                    // Task handle (NULL if not needed)
     );
     
-    xTaskCreate(
-        solenoid_control_task,
-        "solenoid",
-        2048,
-        NULL,
-        1,                      
-        NULL
-    );
+    // xTaskCreate(
+    //     solenoid_control_task,
+    //     "solenoid",
+    //     2048,
+    //     NULL,
+    //     1,                      
+    //     NULL
+    // );
     
     ESP_LOGI(TAG, "All tasks created");
 }
